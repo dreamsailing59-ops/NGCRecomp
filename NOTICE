@@ -1,0 +1,4 @@
+This project includes the Capstone disassembly engine.
+Capstone is Copyright (c) 2013-2026, Nguyen Anh Quynh aquynh@gmail.com
+Licensed under the BSD 3-Clause License.
+Original source: https://github.com/capstone-engine/capstone

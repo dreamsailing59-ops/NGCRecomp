@@ -1,0 +1,12 @@
+# Build directories
+build/
+bin/
+obj/
+
+# Executables
+*.exe
+
+# Game ROMs and Disc Images
+*.iso
+*.gcm
+*.bin
