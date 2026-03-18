@@ -1,11 +1,11 @@
-## NGCRecomp
+ ## NGCRecomp
 NGCRecomp is a static recompilation tool for GameCube binaries. The goal of this project is to lift GameCube executable code (.dol and .rel) into a recompilable format using the Capstone disassembly engine.
 
 Currently, the project is in the Experimental Phase, focusing on ISO parsing, DOL header validation, and Entry Point detection.
 
 Project Structure:
 
-> src/: Core logic for the recompiler.
+`src/`: Core logic for the recompiler.
 
 ''boot.c'': Entry point for the tool; handles ISO/DOL loading.
 
