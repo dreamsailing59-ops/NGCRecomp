@@ -25,7 +25,7 @@ Current Progress
 
 [ ] Instruction Lifting via Capstone
 
-Building
+## Building
 This project uses CMake 3.12+ and a C compiler (GCC/Clang).
 
 Bash
