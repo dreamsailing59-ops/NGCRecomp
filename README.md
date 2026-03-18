@@ -29,15 +29,17 @@ Current Progress
 ## Building
 This project uses CMake 3.12+ and a C compiler (GCC/Clang).
 
-Bash
+```
 mkdir build
 cd build
 cmake ..
 cmake --build .
-Usage
-Bash
-./NGCRecomp <path_to_game.iso>
-Credits & Licensing
-NGCRecomp: Licensed under the MIT License.
+```
 
-Capstone Engine: This project includes the Capstone disassembly framework, which is licensed under the BSD 3-Clause License.
+## Usage
+```
+./NGCRecomp <path_to_game.iso>
+```
+## Credits & Licensing
+- NGCRecomp: Licensed under the MIT License.
+- Capstone Engine: This project includes the Capstone disassembly framework, which is licensed under the BSD 3-Clause License.
