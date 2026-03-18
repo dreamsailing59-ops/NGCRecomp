@@ -3,8 +3,9 @@ NGCRecomp is a static recompilation tool for GameCube binaries. The goal of this
 
 Currently, the project is in the Experimental Phase, focusing on ISO parsing, DOL header validation, and Entry Point detection.
 
-Project Structure
-'src/': Core logic for the recompiler.
+Project Structure:
+
+> src/: Core logic for the recompiler.
 
 ''boot.c'': Entry point for the tool; handles ISO/DOL loading.
 
