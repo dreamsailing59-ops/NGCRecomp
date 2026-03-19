@@ -41,34 +41,42 @@ typedef struct {
 int main(int argc, char *argv[]) {
     if (argc < 2) return 1;
 
-    FILE *file = fopen(argv[1], "rb");
-    if (!file) return 2;
+    FILE *ISO = fopen(argv[1], "rb");
+    if (ISO == NULL) {
+        perror("Failed to open ISO");
+        return 1;
+    }
 
     GCMHeader gcm;
-    fread(&gcm, sizeof(GCMHeader), 1, file);
+    fread(&gcm, sizeof(GCMHeader), 1, ISO);
 
     // Swap big-endian offset for Windows
     uint32_t dolPos = _byteswap_ulong(gcm.dolOffset);
 
-    fseek(file, dolPos, SEEK_SET);
+    fseek(ISO, dolPos, SEEK_SET);
     DOLHeader dol;
-    fread(&dol, sizeof(DOLHeader), 1, file);
+    fread(&dol, sizeof(DOLHeader), 1, ISO);
 
     printf("Entry Point: 0x%X\n", _byteswap_ulong(dol.entryPoint));
 
     uint32_t target = _byteswap_ulong(dol.entryPoint);
 
+    FILE *out = fopen("recompiled_game.c", "w");
+    fprintf(out, "#include \"cpu.h\"\n\n");
+    fprintf(out, "void game_start(GekkoCPU *cpu) {\n");
+
     for (int i = 0; i < 7; i++) {
         uint32_t start = _byteswap_ulong(dol.textAddress[i]);
         uint32_t size = _byteswap_ulong(dol.textSize[i]);
-        uint32_t fileOff = _byteswap_ulong(dol.textOffset[i]);
+        uint32_t ISOOff = _byteswap_ulong(dol.textOffset[i]);
         if (target >= start && target < (start + size)) {
-            uint32_t finalPos = dolPos + fileOff + (target - start);
-            fseek(file, finalPos, SEEK_SET);
+            uint32_t finalPos = dolPos + ISOOff + (target - start);
+            fseek(ISO, finalPos, SEEK_SET);
             uint8_t buffer[16];
-            fread(buffer, 1, 16, file);
+            fread(buffer, 1, 16, ISO);
             csh handle;
-            cs_open(CS_ARCH_PPC, CS_MODE_32, &handle);
+            cs_open(CS_ARCH_PPC, CS_MODE_BIG_ENDIAN, &handle);
+            cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
             cs_insn *insn;
             size_t count = cs_disasm(handle, buffer, 16, target, 0, &insn);
             if (count > 0) {
@@ -80,8 +88,44 @@ int main(int argc, char *argv[]) {
                 printf("Failed to disassemble at 0x%X\n", target);
             }
             break;
+
+            for (size_t j = 0; j < count; j++) {
+                printf("0x%X:\t%s\t%s\n", insn[j].address, insn[j].mnemonic, insn[j].op_str);
+            
+
+            switch (insn[j].id) {
+                case PPC_INS_LI: {
+                    // li rD, value  =>  cpu->gpr[D] = value;
+                    int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                    int32_t imm = insn[j].detail->ppc.operands[1].imm;
+                    fprintf(out, "    cpu->gpr[%d] = %d;\n", reg_d, imm);
+                    break;
+                }
+
+                case PPC_INS_ADDI: {
+                    // addi rD, rA, value => cpu->gpr[D] = cpu->gpr[A] + value;
+                    int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                    int reg_a = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
+                    int32_t imm = insn[j].detail->ppc.operands[2].imm;
+                    fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] + %d;\n", reg_d, reg_a, imm);
+                    break;
+                }
+
+                case PPC_INS_BL: {
+                    // bl target => call a C function at that address
+                    uint32_t target_addr = (uint32_t)insn[j].detail->ppc.operands[0].imm;
+                    fprintf(out, "    func_0x%X(cpu);\n", target_addr);
+                    break;
+                }
+            }
+
+            }
         }
     }
-    fclose(file);
+
+    fprintf(out, "}\n");
+    fclose(out);
+
+    fclose(ISO);
     return 0;
 }
