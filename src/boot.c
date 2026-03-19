@@ -56,6 +56,32 @@ int main(int argc, char *argv[]) {
 
     printf("Entry Point: 0x%X\n", _byteswap_ulong(dol.entryPoint));
 
+    uint32_t target = _byteswap_ulong(dol.entryPoint);
+
+    for (int i = 0; i < 7; i++) {
+        uint32_t start = _byteswap_ulong(dol.textAddress[i]);
+        uint32_t size = _byteswap_ulong(dol.textSize[i]);
+        uint32_t fileOff = _byteswap_ulong(dol.textOffset[i]);
+        if (target >= start && target < (start + size)) {
+            uint32_t finalPos = dolPos + fileOff + (target - start);
+            fseek(file, finalPos, SEEK_SET);
+            uint8_t buffer[16];
+            fread(buffer, 1, 16, file);
+            csh handle;
+            cs_open(CS_ARCH_PPC, CS_MODE_32, &handle);
+            cs_insn *insn;
+            size_t count = cs_disasm(handle, buffer, 16, target, 0, &insn);
+            if (count > 0) {
+                for (size_t j = 0; j < count; j++) {
+                    printf("0x%X:\t%s\t%s\n", insn[j].address, insn[j].mnemonic, insn[j].op_str);
+                }
+                cs_free(insn, count);
+            } else {
+                printf("Failed to disassemble at 0x%X\n", target);
+            }
+            break;
+        }
+    }
     fclose(file);
     return 0;
 }
