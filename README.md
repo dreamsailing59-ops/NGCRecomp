@@ -1,6 +1,3 @@
-# NGCRecomp
-Tool to statically recompile GameCube into native executables
-=======
  ## NGCRecomp
 NGCRecomp is a static recompilation tool for GameCube binaries. The goal of this project is to lift GameCube executable code (.dol and .rel) into a recompilable format using the Capstone disassembly engine.
 
