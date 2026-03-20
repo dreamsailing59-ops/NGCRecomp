@@ -29,17 +29,25 @@ Current Progress
 ## Building
 This project uses CMake 3.12+ and a C compiler (GCC/Clang).
 
+The first step is to build Capstone. From your repo root folder. Enter
+```
+cd external/capstone
+```
+After that. Enter the following commands in this exact order
 ```
 mkdir build
 cd build
 cmake ..
 cmake --build .
 ```
-
+Once it has finished compiling. Go back to the root folder. And repeat the same build process for building Capstone.
 ## Usage
 ```
 ./NGCRecomp <path_to_game.iso>
 ```
+# Limitations
+- The recompiled C code from the game will only contain about 8-9 lines of code (Results may vary). That is normal for this stage because the tool still hasn't decoded every single instruction for the game. Altough the next commits will gradually give more instructions for the tool to decode.
+- This tool is (obviously) still experimental and is not finished.
 ## Credits & Licensing
 - NGCRecomp: Licensed under the MIT License.
 - Capstone Engine: This project includes the Capstone disassembly framework, which is licensed under the BSD 3-Clause License.

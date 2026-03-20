@@ -81,45 +81,78 @@ int main(int argc, char *argv[]) {
             size_t count = cs_disasm(handle, buffer, 16, target, 0, &insn);
             if (count > 0) {
                 for (size_t j = 0; j < count; j++) {
-                    printf("0x%X:\t%s\t%s\n", insn[j].address, insn[j].mnemonic, insn[j].op_str);
+                    printf("0x%X:\t%s\t%s\n", (unsigned)insn[j].address, insn[j].mnemonic, insn[j].op_str);
+
+                    if (!insn[j].detail) {
+                        fprintf(out, "    // Instruction at 0x%X: %s %s (no detail)\n", (unsigned)insn[j].address, insn[j].mnemonic, insn[j].op_str);
+                        continue;
+                    }
+
+                    switch (insn[j].id) {
+                        case PPC_INS_LI: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            // CRITICAL: Ensure we grab the IMM value, not the REG value
+                            int32_t imm = (int32_t)insn[j].detail->ppc.operands[1].imm;
+                            fprintf(out, "    cpu->gpr[%d] = %d;\n", reg_d, imm);
+                            break;
+                        }
+
+                        case PPC_INS_ADDI: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            
+                            // If the second operand is a register, do addition
+                            if (insn[j].detail->ppc.operands[1].type == PPC_OP_REG) {
+                                // Special Case: r0 in an addi instruction IS the value 0
+                                if (insn[j].detail->ppc.operands[1].reg == PPC_REG_R0) {
+                                    int32_t imm = (int32_t)insn[j].detail->ppc.operands[2].imm;
+                                    fprintf(out, "    cpu->gpr[%d] = %d;\n", reg_d, imm);
+                                } else {
+                                    int reg_a = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
+                                    int32_t imm = (int32_t)insn[j].detail->ppc.operands[2].imm;
+                                    fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] + %d;\n", reg_d, reg_a, imm);
+                                }
+                            } 
+                            break;
+                        }
+
+                        case PPC_INS_BL: {
+                            // bl target => call a C function at that address
+                            uint32_t target_addr = (uint32_t)insn[j].detail->ppc.operands[0].imm;
+                            fprintf(out, "    func_0x%X(cpu);\n", target_addr);
+                            break;
+                        }
+
+                        case PPC_INS_STWU: {
+                            int reg_s = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].mem.base - PPC_REG_R0;
+                            int32_t disp = (int32_t)insn[j].detail->ppc.operands[1].mem.disp;
+
+                            // We MUST save the value BEFORE we update the register if we want to be accurate
+                            fprintf(out, "    Write32(cpu, cpu->gpr[%d] + %d, cpu->gpr[%d]);\n", reg_a, disp, reg_s);
+                            fprintf(out, "    cpu->gpr[%d] += %d;\n", reg_a, disp);
+                            break;
+                        }
+
+                        case PPC_INS_LWZ: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].mem.base - PPC_REG_R0;
+                            int32_t disp = (int32_t)insn[j].detail->ppc.operands[1].mem.disp;
+
+                            fprintf(out, "    cpu->gpr[%d] = Read32(cpu, cpu->gpr[%d] + %d);\n", reg_d, reg_a, disp);
+                            break;
+                        }
+                        
+                        default: {
+                            fprintf(out, "    // Unhandled instruction: %s %s\n", insn[j].mnemonic, insn[j].op_str);
+                            break;
+                        }
+                    }
                 }
                 cs_free(insn, count);
             } else {
                 printf("Failed to disassemble at 0x%X\n", target);
             }
-            break;
-
-            for (size_t j = 0; j < count; j++) {
-                printf("0x%X:\t%s\t%s\n", insn[j].address, insn[j].mnemonic, insn[j].op_str);
-            
-
-            switch (insn[j].id) {
-                case PPC_INS_LI: {
-                    // li rD, value  =>  cpu->gpr[D] = value;
-                    int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
-                    int32_t imm = insn[j].detail->ppc.operands[1].imm;
-                    fprintf(out, "    cpu->gpr[%d] = %d;\n", reg_d, imm);
-                    break;
-                }
-
-                case PPC_INS_ADDI: {
-                    // addi rD, rA, value => cpu->gpr[D] = cpu->gpr[A] + value;
-                    int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
-                    int reg_a = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
-                    int32_t imm = insn[j].detail->ppc.operands[2].imm;
-                    fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] + %d;\n", reg_d, reg_a, imm);
-                    break;
-                }
-
-                case PPC_INS_BL: {
-                    // bl target => call a C function at that address
-                    uint32_t target_addr = (uint32_t)insn[j].detail->ppc.operands[0].imm;
-                    fprintf(out, "    func_0x%X(cpu);\n", target_addr);
-                    break;
-                }
-            }
-
-            }
+            cs_close(&handle);
         }
     }
 
@@ -127,5 +160,6 @@ int main(int argc, char *argv[]) {
     fclose(out);
 
     fclose(ISO);
+    printf("Recompilation complete! Output written to recompiled_game.c\n");
     return 0;
 }

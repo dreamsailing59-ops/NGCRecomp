@@ -10,3 +10,6 @@ obj/
 *.iso
 *.gcm
 *.bin
+
+# Capstone build files
+external/capstone/build/
