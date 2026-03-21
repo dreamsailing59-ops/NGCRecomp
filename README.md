@@ -26,6 +26,8 @@ Current Progress
 
 - [ ] Instruction Lifting via Capstone
 
+# Notice
+NGCRecomp is not affiliated with Nintendo in any way. NGCRecomp does not contain any copyrighted assets. You must provide your own .ISO
 ## Building
 This project uses CMake 3.12+ and a C compiler (GCC/Clang).
 
