@@ -14,17 +14,35 @@ Project Structure:
 `gamerom.iso`: (Not tracked) The base GameCube ROM for analysis.
 
 Current Progress
-- [x] ISO Disk Header Parsing
+- [x] ISO Disk Header Parsing: Successfully reading the GCM/GCE format.
 
-- [x] DOL Header Extraction
+- [x] DOL Header Extraction: Parsing text/data section offsets and sizes.
 
-- [x] Big-Endian to Little-Endian Conversion
+- [x] Big-Endian to Little-Endian Conversion: Manual byte-swapping for Windows/UCRT64 compatibility.
 
-- [x] Entry Point Detection (Target: The Wind Waker USA 1.00)
+- [x] Entry Point Detection: Targeted at The Wind Waker (USA 1.00) at 0x80003140.
 
-- [ ] Section-to-Address Mapping
+- [x] Section-to-Address Mapping: Translation loop implemented to map RAM addresses to ISO file offsets.
 
-- [ ] Instruction Lifting via Capstone
+- [x] Instruction Lifting via Capstone:
+
+- [x] Basic Arithmetic (addi, add, li, lis).
+
+- [x] Load/Store Logic (lwz, stw, stwu, stb).
+
+- [x] Logical Operations (or, mr, rlwinm, andi.).
+
+- [x] Control Flow Translation:
+
+- [x] Function Call Lifting (bl to C function calls).
+
+- [x] Conditional Branching (bt, bc to C if/goto).
+
+- [x] Unconditional Jumps (b to C goto).
+
+- [ ] Static Block Recovery: (Next Step) Automatically tracing and disassembling full functions until blr.
+
+- [ ] Global Pointer / TOC Handling: Mapping r2 and r13 for static data access.
 
 # Notice
 NGCRecomp is not affiliated with Nintendo in any way. NGCRecomp does not contain any copyrighted assets. You must provide your own .ISO
