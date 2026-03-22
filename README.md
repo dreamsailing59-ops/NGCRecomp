@@ -48,7 +48,7 @@ Once it has finished compiling. Go back to the root folder. And repeat the same 
 ./NGCRecomp <path_to_game.iso>
 ```
 # Limitations
-- The recompiled C code from the game will only contain about 8-9 lines of code (Results may vary). That is normal for this stage because the tool still hasn't decoded every single instruction for the game. Altough the next commits will gradually give more instructions for the tool to decode.
+- Inside the recompiled C code of the game. You will notice some unhandled instructions. This is because not all instructions have been added to decode. But many of them have already been implemented.
 - This tool is (obviously) still experimental and is not finished.
 ## Credits & Licensing
 - NGCRecomp: Licensed under the MIT License.
