@@ -72,15 +72,16 @@ int main(int argc, char *argv[]) {
         if (target >= start && target < (start + size)) {
             uint32_t finalPos = dolPos + ISOOff + (target - start);
             fseek(ISO, finalPos, SEEK_SET);
-            uint8_t buffer[16];
-            fread(buffer, 1, 16, ISO);
+            uint8_t buffer[2048];
+            fread(buffer, 1, 2048, ISO);
             csh handle;
             cs_open(CS_ARCH_PPC, CS_MODE_BIG_ENDIAN, &handle);
             cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
             cs_insn *insn;
-            size_t count = cs_disasm(handle, buffer, 16, target, 0, &insn);
+            size_t count = cs_disasm(handle, buffer, 2048, target, 0, &insn);
             if (count > 0) {
                 for (size_t j = 0; j < count; j++) {
+                    fprintf(out, "loc_0x%llX:\n", insn[j].address);
                     printf("0x%X:\t%s\t%s\n", (unsigned)insn[j].address, insn[j].mnemonic, insn[j].op_str);
 
                     if (!insn[j].detail) {
@@ -89,11 +90,46 @@ int main(int argc, char *argv[]) {
                     }
 
                     switch (insn[j].id) {
+
+                        case PPC_INS_STBU: {
+                            int reg_s = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].mem.base - PPC_REG_R0;
+                            int32_t disp = (int32_t)insn[j].detail->ppc.operands[1].mem.disp;
+                            
+                            fprintf(out, "    cpu->gpr[%d] += %d;\n", reg_a, disp);
+                            fprintf(out, "    Write8(cpu, cpu->gpr[%d], (uint8_t)cpu->gpr[%d]);\n", reg_a, reg_s);
+                            break;
+                        }
+
+                        case PPC_INS_LIS: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int32_t imm = (int16_t)insn[j].detail->ppc.operands[1].imm;
+                            fprintf(out, "    cpu->gpr[%d] = 0x%04X0000;\n", reg_d, (uint16_t)imm);
+                            break;
+                        }
+
                         case PPC_INS_LI: {
                             int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
-                            // CRITICAL: Ensure we grab the IMM value, not the REG value
                             int32_t imm = (int32_t)insn[j].detail->ppc.operands[1].imm;
                             fprintf(out, "    cpu->gpr[%d] = %d;\n", reg_d, imm);
+                            break;
+                        }
+
+                        case PPC_INS_ANDI: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
+                            uint32_t imm = (uint32_t)insn[j].detail->ppc.operands[2].imm;
+
+                            fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] & 0x%X;\n", reg_d, reg_a, imm);
+                            fprintf(out, "    cpu->cr = (cpu->gpr[%d] == 0);\n", reg_d);
+                            break;
+                        }
+
+                        case PPC_INS_ADD: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
+                            int reg_b = insn[j].detail->ppc.operands[2].reg - PPC_REG_R0;
+                            fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] + cpu->gpr[%d];\n", reg_d, reg_a, reg_b);
                             break;
                         }
 
@@ -112,6 +148,36 @@ int main(int argc, char *argv[]) {
                                     fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] + %d;\n", reg_d, reg_a, imm);
                                 }
                             } 
+                            break;
+                        }
+
+                        case PPC_INS_ADDIC: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
+                            int32_t imm = (int32_t)insn[j].detail->ppc.operands[2].imm;
+
+                            fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] + %d;\n", reg_d, reg_a, imm);
+                            fprintf(out, "    cpu->cr = (cpu->gpr[%d] == 0);\n", reg_d);
+                            break;
+                        }
+                        case PPC_INS_ADDIS: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
+                            int32_t imm = (int32_t)insn[j].detail->ppc.operands[2].imm;
+
+                            if (insn[j].detail->ppc.operands[1].reg == PPC_REG_R0) {
+                                // This is a 'lis' (Load Immediate Shifted)
+                                fprintf(out, "    cpu->gpr[%d] = 0x%X;\n", reg_d, imm << 16);
+                            } else {
+                                // This is a standard addis
+                                fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] + (0x%X);\n", reg_d, reg_a, imm << 16);
+                            }
+                            break;
+                        }
+
+                        case PPC_INS_B: {
+                            uint32_t target_addr = (uint32_t)insn[j].detail->ppc.operands[0].imm;
+                            fprintf(out, "    goto loc_0x%X;\n", target_addr);
                             break;
                         }
 
@@ -134,6 +200,7 @@ int main(int argc, char *argv[]) {
                         }
 
                         case PPC_INS_LWZ: {
+                            // lwz rD, d(rA)
                             int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
                             int reg_a = insn[j].detail->ppc.operands[1].mem.base - PPC_REG_R0;
                             int32_t disp = (int32_t)insn[j].detail->ppc.operands[1].mem.disp;
@@ -141,9 +208,94 @@ int main(int argc, char *argv[]) {
                             fprintf(out, "    cpu->gpr[%d] = Read32(cpu, cpu->gpr[%d] + %d);\n", reg_d, reg_a, disp);
                             break;
                         }
+
+                        case PPC_INS_MTLR: {
+                            int reg_s = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            fprintf(out, "    cpu->lr = cpu->gpr[%d];\n", reg_s);
+                            break;
+                        }
+                        case PPC_INS_BLRL: {
+                            fprintf(out, "    ((void (*)(GekkoCPU*))cpu->lr)(cpu);\n");
+                            break;
+                        }
+                        case PPC_INS_MTCTR: {
+                            int reg_s = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            fprintf(out, "    cpu->ctr = cpu->gpr[%d];\n", reg_s);
+                            break;
+                        }
+
+                        case PPC_INS_MFLR: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            fprintf(out, "    cpu->gpr[%d] = cpu->lr;\n", reg_d);
+                            break;
+                        }
+                        case PPC_INS_BLR: {
+                            fprintf(out, "    return;\n");
+                            break;
+                        }
+
+                        case PPC_INS_OR: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
+                            int reg_b = insn[j].detail->ppc.operands[2].reg - PPC_REG_R0;
+
+                            // Handle 'mr' which is 'or rD, rA, rA'
+                            if (reg_a == reg_b) {
+                                fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d];\n", reg_d, reg_a);
+                            } else {
+                                fprintf(out, "    cpu->gpr[%d] = cpu->gpr[%d] | cpu->gpr[%d];\n", reg_d, reg_a, reg_b);
+                            }
+                            break;
+                        }
                         
                         default: {
                             fprintf(out, "    // Unhandled instruction: %s %s\n", insn[j].mnemonic, insn[j].op_str);
+                            break;
+                        }
+
+                        case PPC_INS_STW: {
+                            int reg_s = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].mem.base - PPC_REG_R0;
+                            int32_t disp = (int32_t)insn[j].detail->ppc.operands[1].mem.disp;
+                            fprintf(out, "    Write32(cpu, cpu->gpr[%d] + %d, cpu->gpr[%d]);\n", reg_a, disp, reg_s);
+                            break;
+                        }
+
+                        case PPC_INS_CMPLWI: {
+                            int reg_a = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            uint32_t imm = (uint32_t)insn[j].detail->ppc.operands[1].imm;
+                            // We compare and store the result in our virtual CR
+                            fprintf(out, "    cpu->cr = (cpu->gpr[%d] == %u);\n", reg_a, imm);
+                            break;
+                        }
+
+                        case PPC_INS_LBZU: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_a = insn[j].detail->ppc.operands[1].mem.base - PPC_REG_R0;
+                            int32_t disp = (int32_t)insn[j].detail->ppc.operands[1].mem.disp;
+                            
+                            fprintf(out, "    cpu->gpr[%d] += %d;\n", reg_a, disp);
+                            fprintf(out, "    cpu->gpr[%d] = (uint32_t)Read8(cpu, cpu->gpr[%d]);\n", reg_d, reg_a);
+                            break;
+                        }
+
+                        case PPC_INS_BC: {
+                            // For 'bt eq', operand 1 is usually the target address
+                            uint32_t target_addr = (uint32_t)insn[j].detail->ppc.operands[1].imm;
+                            
+                            // In the early recompiler, we can treat this as a simple 'if'
+                            fprintf(out, "    if (cpu->cr) goto loc_0x%X;\n", target_addr);
+                            break;
+                        }
+
+                        case PPC_INS_RLWINM: {
+                            int reg_d = insn[j].detail->ppc.operands[0].reg - PPC_REG_R0;
+                            int reg_s = insn[j].detail->ppc.operands[1].reg - PPC_REG_R0;
+                            uint32_t shift = insn[j].detail->ppc.operands[2].imm;
+                            uint32_t mb = insn[j].detail->ppc.operands[3].imm;
+                            uint32_t me = insn[j].detail->ppc.operands[4].imm;
+                            
+                            fprintf(out, "    cpu->gpr[%d] = __rlwinm(cpu->gpr[%d], %u, %u, %u);\n", reg_d, reg_s, shift, mb, me);
                             break;
                         }
                     }
